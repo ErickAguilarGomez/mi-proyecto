@@ -7,7 +7,6 @@
     <b-modal :id="`modal-client-${dataClient.id}`" ref="modal" :title="`Update Client: ${dataClient.name}`"
       @show="resetModal" @hidden="resetModal" @ok="handleOk">
       <form ref="form" @submit.stop.prevent="handleSubmit">
-        <!-- Campos del formulario -->
 
         <b-form-group label="Name" label-for="name-input" invalid-feedback="Name is required" :state="nameState">
           <b-form-input id="name-input" v-model="name" :state="nameState" required></b-form-input>
@@ -23,10 +22,10 @@
 
         <h6>Transactions</h6>
 
-        <!-- Mostrar las transacciones solo si existen -->
         <div v-if="transtactionsPerClient.length > 0">
-          <b-form-group v-for="transaction in transtactionsPerClient" :key="transaction.id"
+          <b-form-group v-for="(transaction, index) in transtactionsPerClient" :key="transaction.id"
             class="flex flex-col md:flex-row gap-4 p-4 rounded-lg bg-gray-100 shadow-lg">
+
             <b-form-input type="number" v-model="transaction.amount"
               class="w-full md:w-2/3 p-3 text-lg border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
               placeholder="Amount" :state="transaction.amount ? true : false"></b-form-input>
@@ -35,12 +34,13 @@
               class="w-full md:w-1/3 p-3 text-lg border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
               placeholder="Date" :state="transaction.date ? true : false"></b-form-input>
 
-            <!-- Botón para eliminar una transacción específica -->
-            <b-button variant="danger" @click="deleteTransaction(index)">Delete Transaction</b-button>
+            <!-- Llamar a deleteTransaction pasando el índice correctamente -->
+            <b-button variant="danger" @click="deleteTransaction(index, transaction.id)">Delete Transaction</b-button>
+            <b-button variant="outline-primary" @click="updateTransac(index, transaction.id)">Update Transaction</b-button>
+
           </b-form-group>
         </div>
 
-        <!-- Mostrar el botón "Añadir Transacción" siempre -->
         <b-button variant="success" @click="addTransaction" class="mt-3">
           Add Transaction
         </b-button>
@@ -50,7 +50,7 @@
 </template>
 
 <script>
-import axios from 'axios';
+import { fnInserTransaction, fnUpdateClient, fnDeleteTransaction,fnUpdateTransaction } from "../services/Services.js";
 
 export default {
   props: {
@@ -68,19 +68,12 @@ export default {
       nameState: null,
       emailState: null,
       phoneState: null,
-      transtactionsPerClient: this.dataClient.transtactions,
+      transtactionsPerClient: this.dataClient.transtactions || [],
     };
   },
   methods: {
     showModal() {
       this.$bvModal.show(`modal-client-${this.dataClient.id}`);
-
-      // Si no hay transacciones iniciales, crea una por defecto
-      if (this.transtactionsPerClient.length === 0) {
-        console.log("No transactions found for this client. Only showing Add Transaction button.");
-      } else {
-        console.log("Existing transactions: ", JSON.stringify(this.transtactionsPerClient));
-      }
     },
 
     resetModal() {
@@ -115,38 +108,29 @@ export default {
           phone: this.phone,
         };
 
-        await axios.patch("http://127.0.0.1:8000/update", bodyData, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
+        await fnUpdateClient(bodyData);
+        this.$emit("clientUpdated", true);
 
-        await this.inserTransactions();
+        const newTransactions = this.transtactionsPerClient.filter(
+          (transaction) => !transaction.id
+        );
+
+        const existingTransactions = this.transtactionsPerClient.filter(
+          (transaction) => transaction.id
+        );
+
+        if (newTransactions.length > 0) {
+          await fnInserTransaction(newTransactions);
+        }
+
+        for (const transaction of existingTransactions) {
+          await fnUpdateTransaction(transaction);
+        }
+
+        alert("Client and transactions updated successfully!");
+
       } catch (error) {
         console.error('Error updating client or transactions:', error.message);
-      }
-    },
-
-    async inserTransactions() {
-      try {
-        const transactions = [
-          {
-            clientID: 29,
-            amount: 1500,
-            date: "2024-10-13"
-          }
-        ];
-
-        const seconData = this.transtactionsPerClient
-        console.log(seconData)
-
-        const { data } = await axios.post("http://127.0.0.1:8000/insert/transactions",
-          { transactions: seconData },
-          { headers: { 'Content-Type': 'application/json' } });
-
-        console.log('Transactions inserted: ', data);
-      } catch (error) {
-        console.error('Error inserting transactions:', error.message);
       }
     },
 
@@ -158,8 +142,19 @@ export default {
         }
       }
 
-      const invalidIndex = this.transtactionsPerClient.findIndex(transaction => !transaction.clientID);
-      this.transtactionsPerClient[invalidIndex].clientID = this.id;
+      if (this.transtactionsPerClient.length <= 0) {
+        return false;
+      }
+
+      // Buscar transacciones sin clientID
+      const invalidIndex = this.transtactionsPerClient.findIndex(
+        (transaction) => !transaction.clientID
+      );
+
+      // Validar que se encontró un índice válido
+      if (invalidIndex !== -1) {
+        this.transtactionsPerClient[invalidIndex].clientID = this.id;
+      }
 
       return true;
     },
@@ -169,20 +164,46 @@ export default {
         alert("Please fill in all transaction fields before adding a new one.");
         return;
       }
-
-
       const newTransaction = {
         clientID: this.dataClient.id,
         amount: null,
         date: "",
+        id: null,
       };
 
       this.transtactionsPerClient.push(newTransaction);
     },
 
-    deleteTransaction(index) {
+    async deleteTransaction(index, id = null) {
+      const transaction = this.transtactionsPerClient[index];
+      if (transaction && transaction.id) {
+        await fnDeleteTransaction(transaction.id)
+        console.log("Tiene un ID válido, se puede eliminar del servidor");
+      } else {
+        console.log("No tiene ID válido, solo se eliminará localmente");
+      }
+
       this.transtactionsPerClient.splice(index, 1);
     },
+
+    async updateTransac(index, id = null) {
+      const transaction = this.transtactionsPerClient[index];
+      if (transaction && transaction.id) {
+        await fnUpdateTransaction(transaction)
+        this.$nextTick(() => {
+        this.$bvModal.hide(`modal-client-${this.dataClient.id}`);
+        this.$emit("clientUpdated", true);
+      });
+        console.log("Actualizado De manera exitosa");
+      } else {
+        console.log("No tiene ID válido, solo se eliminará localmente");
+      }
+    },
+
+
+
+
+
   },
 };
 </script>

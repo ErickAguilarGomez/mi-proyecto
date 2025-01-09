@@ -1,13 +1,12 @@
 <template>
-
   <div>
     <div class="w-100 d-flex justify-center flex-column">
-
+      <!-- Botón para agregar cliente -->
       <b-button v-b-modal.modal-prevent-closing class="bg-primary mx-auto">Add New Client</b-button>
 
+      <!-- Modal para agregar nuevo cliente -->
       <b-modal id="modal-prevent-closing" ref="modal" title="Submit Client Info" @show="resetModal" @hidden="resetModal"
         @ok="handleOk">
-
         <form ref="form" @submit.stop.prevent="handleSubmit">
           <b-form-group label="Name" label-for="name-input" invalid-feedback="Name is required" :state="nameState">
             <b-form-input id="name-input" v-model="name" :state="nameState" required></b-form-input>
@@ -17,17 +16,16 @@
             <b-form-input id="email-input" v-model="email" :state="emailState" required></b-form-input>
           </b-form-group>
 
-          <b-form-group label="Phone" label-for="phone-input" invalid-feedback="phone is required" :state="phoneState">
+          <b-form-group label="Phone" label-for="phone-input" invalid-feedback="Phone is required" :state="phoneState">
             <b-form-input id="phone-input" v-model="phone" :state="phoneState" required></b-form-input>
           </b-form-group>
         </form>
-
       </b-modal>
-
     </div>
 
-    <table cellpadding="10" cellspacing="0" class="w-100">
-      <thead>
+    <!-- Tabla con los clientes y sus transacciones -->
+    <table cellpadding="10" cellspacing="0" class="w-100 table table-bordered">
+      <thead class="text-center">
         <tr>
           <th>ID</th>
           <th>NAME</th>
@@ -38,37 +36,43 @@
         </tr>
       </thead>
 
-      <tbody v-if="clients.length != 0">
-        <tr v-for="client in clients" :key="client.id" class="border border-primary">
+      <tbody v-if="clients.length !== 0" class="text-center">
+        <tr v-for="client in clients" :key="client.id">
           <td>{{ client.id }}</td>
           <td>{{ client.name }}</td>
           <td>{{ client.email }}</td>
           <td>{{ client.phone }}</td>
-          <td v-for="clientTransaction in client.transtactions"  class="d-flex flex-col gap-5">
-            <div class="border border-primary  p-1" >{{ clientTransaction.amount }} </div>
-            <div class="border border-primary  p-1">{{ clientTransaction.date }}</div>
+
+          <td>
+            <div class="border p-1">
+              <strong>Total Amount:</strong> {{ calculateTotalAmount(client.transtactions) }}
+            </div>
           </td>
-          <td class="d-flex gap-3">
+
+          <td class="d-flex gap-4 justify-content-center">
             <b-button variant="danger" @click="deleteClient(client.id)">Delete</b-button>
-            <HelloWorld :dataClient="client"/>
+            <ModalUpdate :dataClient="client" @clientUpdated="handleClientUpdated" />
           </td>
         </tr>
+      </tbody>
 
+      <tbody v-else>
+        <tr>
+          <td colspan="6" class="text-center">No clients available</td>
+        </tr>
       </tbody>
     </table>
   </div>
-
 </template>
 
 <script>
-import axios from 'axios';
-import { clients, fnFetchClients, fnDeleteClient, fnCreateClient } from "./services/Services.js";
+import { fnFetchClients, fnDeleteClient, fnCreateClient } from "./services/Services.js";
 
-import HelloWorld from './components/HelloWorld.vue';
+import ModalUpdate from './components/ModalUpdate.vue';
 
 export default {
   components: {
-    HelloWorld
+    ModalUpdate
   },
   data() {
     return {
@@ -78,25 +82,30 @@ export default {
       clients: [],
       nameState: null,
       emailState: null,
-      phoneState: null
+      phoneState: null,
+      isClientUpdated: false
     }
   },
-  mounted() {
-    this.fetchClients();
+  async mounted() {
+    this.clients = await fnFetchClients();
+    console.log(this.clients)
   },
 
   watch: {
-    'clients.length': function (newLength, oldLength) {
-      this.fetchClients();
+    'clients.length': async function (newLength, oldLength) {
+      this.clients = await fnFetchClients();
+    },
+
+    'isClientUpdated': async function (newLength, oldLength) {
+      window.location.reload();
     }
   },
 
   methods: {
-    async fetchClients() {
-      const reponse = await axios.get("http://127.0.0.1:8000/home")
-      this.clients = reponse.data.data
-      console.log(this.clients)
+    handleClientUpdated(isUpdated) {
+      this.isClientUpdated = true;
     },
+
 
     checkFormValidity() {
       const valid = this.$refs.form.checkValidity()
@@ -122,30 +131,30 @@ export default {
         return
       }
       this.clients.push(this.name)
-      await this.createClient()
+
+      const dataClient = {
+        name: this.name,
+        email: this.email,
+        phone: this.phone
+      }
+      await fnCreateClient(dataClient)
       this.$nextTick(() => {
         this.$bvModal.hide('modal-prevent-closing')
       })
 
     },
 
-    async createClient() {
-      const { data } = await axios.post("http://127.0.0.1:8000/create", {
-        name: this.name,
-        email: this.email,
-        phone: this.phone
-      }, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
-      )
+    async deleteClient(id) {
+      this.clients = this.clients.filter((client) => client.id != id)
+      await fnDeleteClient(id)
     },
 
-    async deleteClient(id) {
-      const { data } = await axios.delete(`http://127.0.0.1:8000/delete/${id}`)
-      this.clients = this.clients.filter((client) => client.id != id)
-    }
+    calculateTotalAmount(transactions) {
+      transactions = transactions || [];
+      console.log(transactions)
+
+      return transactions.reduce((total, transaction) => total + (transaction.amount || 0), 0);
+    },
 
 
   }
