@@ -23,23 +23,27 @@
 
         <h6>Transactions</h6>
 
-        <b-form-group v-for="(transaction, index) in transtactionsPerClient" :key="transaction.id"
-          class="flex flex-col md:flex-row gap-4 p-4 rounded-lg bg-gray-100 shadow-lg">
-          <b-form-input type="number" v-model="transaction.amount"
-            class="w-full md:w-2/3 p-3 text-lg border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
-            placeholder="Amount" :state="transaction.amount ? true : false"></b-form-input>
+        <!-- Mostrar las transacciones solo si existen -->
+        <div v-if="transtactionsPerClient.length > 0">
+          <b-form-group v-for="transaction in transtactionsPerClient" :key="transaction.id"
+            class="flex flex-col md:flex-row gap-4 p-4 rounded-lg bg-gray-100 shadow-lg">
+            <b-form-input type="number" v-model="transaction.amount"
+              class="w-full md:w-2/3 p-3 text-lg border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
+              placeholder="Amount" :state="transaction.amount ? true : false"></b-form-input>
 
-          <b-form-input type="date" v-model="transaction.date"
-            class="w-full md:w-1/3 p-3 text-lg border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
-            placeholder="Date" :state="transaction.date ? true : false"></b-form-input>
+            <b-form-input type="date" v-model="transaction.date"
+              class="w-full md:w-1/3 p-3 text-lg border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
+              placeholder="Date" :state="transaction.date ? true : false"></b-form-input>
 
-          <!-- Botón para eliminar una transacción específica -->
-          <b-button variant="danger" @click="deleteTransaction(index)">Delete Transaction</b-button>
-        </b-form-group>
+            <!-- Botón para eliminar una transacción específica -->
+            <b-button variant="danger" @click="deleteTransaction(index)">Delete Transaction</b-button>
+          </b-form-group>
+        </div>
 
-        <!-- Botón para añadir más transacciones -->
-        <b-button variant="success" @click="addTransaction">Add Transaction</b-button>
-
+        <!-- Mostrar el botón "Añadir Transacción" siempre -->
+        <b-button variant="success" @click="addTransaction" class="mt-3">
+          Add Transaction
+        </b-button>
       </form>
     </b-modal>
   </div>
@@ -64,28 +68,19 @@ export default {
       nameState: null,
       emailState: null,
       phoneState: null,
-      transtactionsPerClient: this.dataClient.transtactions || []
+      transtactionsPerClient: this.dataClient.transtactions,
     };
   },
   methods: {
-    // Abre el modal dinámicamente
     showModal() {
       this.$bvModal.show(`modal-client-${this.dataClient.id}`);
 
       // Si no hay transacciones iniciales, crea una por defecto
       if (this.transtactionsPerClient.length === 0) {
-        this.addTransaction();
+        console.log("No transactions found for this client. Only showing Add Transaction button.");
+      } else {
+        console.log("Existing transactions: ", JSON.stringify(this.transtactionsPerClient));
       }
-
-      console.log("Hola desde update", JSON.stringify(this.transtactionsPerClient));
-    },
-
-    checkFormValidity() {
-      const valid = this.$refs.form.checkValidity();
-      this.nameState = valid;
-      this.emailState = valid;
-      this.phoneState = valid;
-      return valid;
     },
 
     resetModal() {
@@ -97,31 +92,22 @@ export default {
       this.phoneState = null;
     },
 
-    // Se llama cuando se presiona OK en el modal
     handleOk(bvModalEvent) {
       bvModalEvent.preventDefault();
       this.handleSubmit();
     },
 
     handleSubmit() {
-      if (!this.checkFormValidity()) {
-        return;
-      }
-
-      if (!this.validateTransactions()) {
-        return; // Si las transacciones no son válidas, no continuar con el envío
-      }
+      if (!this.validateTransactions()) return;
 
       this.$nextTick(() => {
         this.$bvModal.hide(`modal-client-${this.dataClient.id}`);
-        console.log("Form Submitted!");
-        this.updateClient(); // Llamada a la función de actualización
+        this.updateClient();
       });
     },
 
     async updateClient() {
       try {
-        // Actualizar los datos del cliente
         const bodyData = {
           id: this.dataClient.id,
           name: this.name,
@@ -129,30 +115,38 @@ export default {
           phone: this.phone,
         };
 
-        const { data } = await axios.patch("http://127.0.0.1:8000/update", bodyData, {
+        await axios.patch("http://127.0.0.1:8000/update", bodyData, {
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           },
         });
 
-        await this.inserTransactions()
-
+        await this.inserTransactions();
       } catch (error) {
-        console.error('Error al actualizar el cliente o las transacciones:', error.data || error.message);
+        console.error('Error updating client or transactions:', error.message);
       }
     },
 
     async inserTransactions() {
       try {
-        const { data } = await axios.post("http://127.0.0.1:8000/insert/transactions", JSON.stringify(this.transtactionsPerClient), {
-          headers: {
-            'Content-Type': 'application/json'
-          },
-        });
-        console.log('transacciones insertadas: ', data);
+        const transactions = [
+          {
+            clientID: 29,
+            amount: 1500,
+            date: "2024-10-13"
+          }
+        ];
 
+        const seconData = this.transtactionsPerClient
+        console.log(seconData)
+
+        const { data } = await axios.post("http://127.0.0.1:8000/insert/transactions",
+          { transactions: seconData },
+          { headers: { 'Content-Type': 'application/json' } });
+
+        console.log('Transactions inserted: ', data);
       } catch (error) {
-        console.error('Error al actualizar el cliente o las transacciones:', error.data || error.message);
+        console.error('Error inserting transactions:', error.message);
       }
     },
 
@@ -163,19 +157,24 @@ export default {
           return false;
         }
       }
+
+      const invalidIndex = this.transtactionsPerClient.findIndex(transaction => !transaction.clientID);
+      this.transtactionsPerClient[invalidIndex].clientID = this.id;
+
       return true;
     },
 
     addTransaction() {
-      if (this.transtactionsPerClient.some(transaction => !transaction.amount || !transaction.date)) {
+      if (this.transtactionsPerClient.some((transaction) => !transaction.amount || !transaction.date)) {
         alert("Please fill in all transaction fields before adding a new one.");
         return;
       }
 
+
       const newTransaction = {
         clientID: this.dataClient.id,
         amount: null,
-        date: ""
+        date: "",
       };
 
       this.transtactionsPerClient.push(newTransaction);
@@ -183,7 +182,7 @@ export default {
 
     deleteTransaction(index) {
       this.transtactionsPerClient.splice(index, 1);
-    }
-  }
+    },
+  },
 };
 </script>

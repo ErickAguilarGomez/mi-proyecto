@@ -62,6 +62,8 @@
 
 <script>
 import axios from 'axios';
+import { clients, fnFetchClients, fnDeleteClient, fnCreateClient } from "./services/Services.js";
+
 import HelloWorld from './components/HelloWorld.vue';
 
 export default {
@@ -143,7 +145,6 @@ export default {
     async deleteClient(id) {
       const { data } = await axios.delete(`http://127.0.0.1:8000/delete/${id}`)
       this.clients = this.clients.filter((client) => client.id != id)
-      console.log(data.data)
     }
 
 
