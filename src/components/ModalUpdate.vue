@@ -1,9 +1,7 @@
 <template>
   <div>
-    <!-- Botón para abrir el modal -->
     <b-button @click="showModal">Update</b-button>
 
-    <!-- Modal con ID dinámico -->
     <b-modal :id="`modal-client-${dataClient.id}`" ref="modal" :title="`Update Client: ${dataClient.name}`"
       @show="resetModal" @hidden="resetModal" @ok="handleOk">
       <form ref="form" @submit.stop.prevent="handleSubmit">
@@ -34,7 +32,6 @@
               class="w-full md:w-1/3 p-3 text-lg border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
               placeholder="Date" :state="transaction.date ? true : false"></b-form-input>
 
-            <!-- Llamar a deleteTransaction pasando el índice correctamente -->
             <b-button variant="danger" @click="deleteTransaction(index, transaction.id)">Delete Transaction</b-button>
             <b-button variant="outline-primary" @click="updateTransac(index, transaction.id)">Update Transaction</b-button>
 
@@ -176,14 +173,15 @@ export default {
 
     async deleteTransaction(index, id = null) {
       const transaction = this.transtactionsPerClient[index];
+      this.transtactionsPerClient.splice(index, 1);
       if (transaction && transaction.id) {
         await fnDeleteTransaction(transaction.id)
+        this.$emit("clientUpdated", true);
         console.log("Tiene un ID válido, se puede eliminar del servidor");
       } else {
         console.log("No tiene ID válido, solo se eliminará localmente");
       }
 
-      this.transtactionsPerClient.splice(index, 1);
     },
 
     async updateTransac(index, id = null) {
@@ -200,10 +198,7 @@ export default {
       }
     },
 
-
-
-
-
   },
+  
 };
 </script>
