@@ -143,12 +143,10 @@ export default {
         return false;
       }
 
-      // Buscar transacciones sin clientID
       const invalidIndex = this.transtactionsPerClient.findIndex(
         (transaction) => !transaction.clientID
       );
 
-      // Validar que se encontró un índice válido
       if (invalidIndex !== -1) {
         this.transtactionsPerClient[invalidIndex].clientID = this.id;
       }
